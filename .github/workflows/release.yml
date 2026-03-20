@@ -43,28 +43,28 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           cd publish
-          zip -j ../SkinManager_${{ steps.version.outputs.VERSION }}.zip \
-            Jellyfin.Plugin.SkinManager.dll \
+          zip -j ../ModManager_${{ steps.version.outputs.VERSION }}.zip \
+            Jellyfin.Plugin.ModManager.dll \
             Newtonsoft.Json.dll
 
       - name: Compute MD5 checksum
         if: startsWith(github.ref, 'refs/tags/')
         id: checksum
         run: |
-          echo "MD5=$(md5sum SkinManager_${{ steps.version.outputs.VERSION }}.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "MD5=$(md5sum ModManager_${{ steps.version.outputs.VERSION }}.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: SkinManager v${{ steps.version.outputs.VERSION }}
+          name: ModManager v${{ steps.version.outputs.VERSION }}
           body: |
-            ## SkinManager v${{ steps.version.outputs.VERSION }}
+            ## ModManager v${{ steps.version.outputs.VERSION }}
 
             ### Installation
-            Download `SkinManager_${{ steps.version.outputs.VERSION }}.zip`, extract, and copy the DLLs to your Jellyfin plugins folder.
+            Download `ModManager_${{ steps.version.outputs.VERSION }}.zip`, extract, and copy the DLLs to your Jellyfin plugins folder.
 
             **MD5:** `${{ steps.checksum.outputs.MD5 }}`
 
             Update this value in `manifest.json` for the plugin catalogue.
-          files: SkinManager_${{ steps.version.outputs.VERSION }}.zip
+          files: ModManager_${{ steps.version.outputs.VERSION }}.zip
