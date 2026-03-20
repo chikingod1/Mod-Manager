@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Mod Manager</title>
+    <style>
+        .modManagerPage .cardImageContainer {
+            height: 130px !important;
+            background-size: cover !important;
+            background-position: top center !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modManagerPage .card.enabledCard .cardBox {
+            outline: 3px solid #00a4dc;
+            outline-offset: -3px;
+            border-radius: 4px;
+        }
+
+        .modManagerPage .activeBar {
+            display: flex;
+            align-items: center;
+            gap: .75em;
+            padding: .6em 1em;
+            background: rgba(0, 164, 220, .1);
+            border: 1px solid rgba(0, 164, 220, .3);
+            border-radius: 4px;
+            margin-bottom: 1em;
+            font-size: .9em;
+        }
+
+        .modManagerPage .typeBadge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            z-index: 1;
+        }
+
+        .modManagerPage .typeBadge-js {
+            background: #f0c040;
+            color: #000;
+        }
+
+        .modManagerPage .typeBadge-css {
+            background: #4090f0;
+            color: #fff;
+        }
+
+        .modManagerPage .typeBadge-both {
+            background: #9060e0;
+            color: #fff;
+        }
+
+        .modManagerPage .enabledCheck {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: #00a4dc;
+            color: #fff;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 1;
+        }
+
+        .modManagerPage .stateMsg {
+            padding: 3em 1em;
+            text-align: center;
+            opacity: .45;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ModManagerConfigurationPage" data-role="page"
+        class="page type-interior pluginConfigurationPage modManagerConfigurationPage modManagerPage"
+        data-require="emby-input,emby-button,emby-select">
+
+        <div data-role="content">
+            <div class="content-primary">
+
+                <h2>Mod Manager</h2>
+
+                <div class="activeBar" id="activeBar" style="display:none">
+                    <span><strong id="activeCount">0</strong> mod(s) active</span>
+                    <button is="emby-button" type="button" id="btnDisableAll" class="emby-button"
+                        style="margin-left:auto">
+                        Disable All
+                    </button>
+                </div>
+
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="modsUrl">Mod Repository URL</label>
+                    <input type="url" id="modsUrl" class="emby-input"
+                        placeholder="https://raw.githubusercontent.com/…/mods.json" />
+                </div>
+                <div style="margin-bottom:1.5em">
+                    <button is="emby-button" type="button" id="btnLoad" class="raised emby-button">
+                        Load Mods
+                    </button>
+                </div>
+
+                <div class="inputContainer" style="margin-bottom:.25em">
+                    <label class="inputLabel inputLabelUnfocused" for="searchInput">Search</label>
+                    <input type="text" id="searchInput" class="emby-input" placeholder="Search mods…" />
+                </div>
+
+                <div id="typeFilters" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;margin-bottom:4px;">
+                </div>
+
+                <div id="tagFilters" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;margin-bottom:16px;">
+                </div>
+
+                <div id="modGrid" class="itemsContainer vertical-wrap">
+                    <div class="stateMsg">Enter a repository URL above and click <strong>Load Mods</strong>.</div>
+                </div>
+
+                <div style="margin-top:1.5em;display:flex;align-items:center;gap:1em;flex-wrap:wrap">
+                    <span id="pendingLabel" style="font-size:.85em;opacity:.6">No pending changes</span>
+                    <button is="emby-button" type="button" id="btnSave" class="raised button-submit emby-button"
+                        disabled>
+                        Save &amp; Apply
+                    </button>
+                </div>
+                <p style="font-size:.8em;opacity:.45;margin-top:.75em">
+                    After saving, hard-refresh with <strong>Ctrl+Shift+R</strong> to see changes.
+                </p>
+
+                <div style="margin-top:2em;padding-top:1em;border-top:1px solid rgba(255,255,255,0.08)">
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.85em;opacity:.6">
+                        <input type="checkbox" id="chkDebug" is="emby-checkbox" />
+                        <span>Enable debug logging (writes to Jellyfin log)</span>
+                    </label>
+                    <p style="font-size:.78em;opacity:.4;margin:.4em 0 0 0">
+                        Takes effect immediately — no page reload needed.
+                    </p>
+                </div>
+
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            (function () {
+                var PLUGIN_ID = 'c3d4e5f6-a7b8-9012-cdef-345678901234';
+
+                var CHIP_OFF = 'display:inline-block;padding:5px 14px;border-radius:999px;border:1px solid rgba(255,255,255,0.28);background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);font-size:12px;line-height:1.4;cursor:pointer;user-select:none;box-sizing:border-box;';
+                var CHIP_ON = 'display:inline-block;padding:5px 14px;border-radius:999px;border:1px solid #00a4dc;background:#00a4dc;color:#fff;font-size:12px;line-height:1.4;cursor:pointer;user-select:none;box-sizing:border-box;font-weight:700;';
+
+                var state = {
+                    mods: [],
+                    enabledIds: [],
+                    pendingIds: null,
+                    config: {},
+                    activeTags: [],
+                    typeFilter: 'all',
+                    query: ''
+                };
+
+                function el(id) { return document.getElementById(id); }
+
+                function loadConfig() {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (cfg) {
+                        state.config = cfg;
+                        state.enabledIds = cfg.EnabledMods || [];
+                        state.pendingIds = null;
+                        el('modsUrl').value = cfg.ModsUrl || '';
+                        el('chkDebug').checked = cfg.DebugLogging || false;
+                        Dashboard.hideLoadingMsg();
+                        updateActiveBar();
+                        updatePending();
+                        var url = el('modsUrl').value.trim();
+                        if (url) loadMods(url);
+                    });
+                }
+
+                function loadMods(url) {
+                    el('modGrid').innerHTML = '<div class="stateMsg">Loading mods…</div>';
+                    el('tagFilters').innerHTML = '';
+                    el('typeFilters').innerHTML = '';
+                    fetch(url)
+                        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                        .then(function (mods) {
+                            state.mods = mods;
+                            buildTypeChips(mods);
+                            buildTagChips(mods);
+                            render();
+                        })
+                        .catch(function (err) {
+                            el('modGrid').innerHTML = '<div class="stateMsg">Could not load mods: ' + err.message + '</div>';
+                        });
+                }
+
+                function buildTypeChips(mods) {
+                    var types = ['all'];
+                    var seen = {};
+                    mods.forEach(function (m) {
+                        var t = (m.type || 'js').toLowerCase();
+                        if (!seen[t]) { seen[t] = true; types.push(t); }
+                    });
+                    var c = el('typeFilters');
+                    c.innerHTML = '';
+                    types.forEach(function (type) {
+                        var b = document.createElement('span');
+                        b.setAttribute('style', type === 'all' ? CHIP_ON : CHIP_OFF);
+                        b.textContent = type === 'all' ? 'All' : type.toUpperCase();
+                        b.addEventListener('click', function () {
+                            state.typeFilter = type;
+                            c.querySelectorAll('span').forEach(function (s) {
+                                s.setAttribute('style', s === b ? CHIP_ON : CHIP_OFF);
+                            });
+                            render();
+                        });
+                        c.appendChild(b);
+                    });
+                }
+
+                function buildTagChips(mods) {
+                    var set = {};
+                    mods.forEach(function (m) { (m.tags || []).forEach(function (t) { set[t] = true; }); });
+                    state.activeTags = [];
+                    var c = el('tagFilters');
+                    c.innerHTML = '';
+                    Object.keys(set).sort().forEach(function (tag) {
+                        var b = document.createElement('span');
+                        b.setAttribute('style', CHIP_OFF);
+                        b.textContent = tag;
+                        b.addEventListener('click', function () {
+                            var i = state.activeTags.indexOf(tag);
+                            if (i === -1) { state.activeTags.push(tag); b.setAttribute('style', CHIP_ON); }
+                            else { state.activeTags.splice(i, 1); b.setAttribute('style', CHIP_OFF); }
+                            render();
+                        });
+                        c.appendChild(b);
+                    });
+                }
+
+                function render() {
+                    var q = state.query.toLowerCase();
+                    var ids = currentIds();
+                    var list = state.mods.filter(function (m) {
+                        var mq = !q ||
+                            (m.name || '').toLowerCase().includes(q) ||
+                            (m.author || '').toLowerCase().includes(q) ||
+                            (m.description || '').toLowerCase().includes(q);
+                        var mt = state.activeTags.length === 0 ||
+                            state.activeTags.every(function (t) { return (m.tags || []).includes(t); });
+                        var mtype = state.typeFilter === 'all' ||
+                            (m.type || '').toLowerCase() === state.typeFilter;
+                        return mq && mt && mtype;
+                    });
+
+                    var grid = el('modGrid');
+                    if (list.length === 0) {
+                        grid.innerHTML = '<div class="stateMsg">No mods match your search.</div>';
+                        return;
+                    }
+                    grid.innerHTML = '';
+                    list.forEach(function (m) { grid.appendChild(buildCard(m, ids)); });
+                }
+
+                function buildCard(mod, ids) {
+                    var isOn = ids.indexOf(mod.id) !== -1;
+                    var type = (mod.type || 'js').toLowerCase();
+
+                    var card = document.createElement('div');
+                    card.className = 'card overflowBackdropCard' + (isOn ? ' enabledCard' : '');
+                    card.style.cssText = 'min-width:200px;max-width:260px;';
+
+                    var cardBox = document.createElement('div');
+                    cardBox.className = 'cardBox';
+
+                    var cardScalable = document.createElement('div');
+                    cardScalable.className = 'cardScalable';
+
+                    var cardPadder = document.createElement('div');
+                    cardPadder.className = 'cardPadder cardPadder-backdrop';
+
+                    var cardContent = document.createElement('div');
+                    cardContent.className = 'cardContent';
+
+                    var imgContainer = document.createElement('div');
+                    imgContainer.className = 'cardImageContainer coveredImage';
+
+                    if (mod.previewUrl) {
+                        imgContainer.style.backgroundImage = 'url("' + mod.previewUrl + '")';
+                    } else {
+                        imgContainer.style.fontSize = '2.5em';
+                        imgContainer.style.opacity = '.2';
+                        imgContainer.textContent = type === 'css' ? '🎨' : '⚙';
+                    }
+
+                    var badge = document.createElement('div');
+                    badge.className = 'typeBadge typeBadge-' + type;
+                    badge.textContent = type.toUpperCase();
+                    imgContainer.appendChild(badge);
+
+                    if (isOn) {
+                        var chk = document.createElement('div');
+                        chk.className = 'enabledCheck';
+                        chk.textContent = '✓';
+                        imgContainer.appendChild(chk);
+                    }
+
+                    cardContent.appendChild(imgContainer);
+                    cardPadder.appendChild(cardContent);
+                    cardScalable.appendChild(cardPadder);
+                    cardBox.appendChild(cardScalable);
+
+                    var footer = document.createElement('div');
+                    footer.className = 'cardFooter';
+
+                    var nameEl = document.createElement('div');
+                    nameEl.className = 'cardText';
+                    nameEl.style.fontWeight = 'bold';
+                    nameEl.textContent = mod.name;
+                    footer.appendChild(nameEl);
+
+                    if (mod.author) {
+                        var authEl = document.createElement('div');
+                        authEl.className = 'cardText cardText-secondary';
+                        authEl.textContent = 'by ' + mod.author;
+                        footer.appendChild(authEl);
+                    }
+
+                    if (mod.description) {
+                        var descEl = document.createElement('div');
+                        descEl.className = 'cardText cardText-secondary';
+                        descEl.style.cssText = 'display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:.8em;opacity:.7;margin-top:.2em';
+                        descEl.textContent = mod.description;
+                        footer.appendChild(descEl);
+                    }
+
+                    if ((mod.tags || []).length > 0) {
+                        var tagRow = document.createElement('div');
+                        tagRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:.5em;margin-bottom:.2em';
+                        mod.tags.slice(0, 4).forEach(function (tag) {
+                            var t = document.createElement('span');
+                            t.style.cssText = 'display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.7);line-height:1.6;';
+                            t.textContent = tag;
+                            tagRow.appendChild(t);
+                        });
+                        footer.appendChild(tagRow);
+                    }
+
+                    var btnRow = document.createElement('div');
+                    btnRow.style.cssText = 'display:flex;gap:.4em;margin-top:.6em;padding-bottom:.4em';
+
+                    var toggleBtn = document.createElement('button');
+                    toggleBtn.setAttribute('is', 'emby-button');
+                    toggleBtn.className = 'raised emby-button' + (isOn ? ' button-submit' : '');
+                    toggleBtn.style.cssText = 'flex:1;padding:.35em .5em;font-size:.78em';
+                    toggleBtn.textContent = isOn ? '✓ Enabled' : 'Enable';
+                    toggleBtn.addEventListener('click', function (e) { e.stopPropagation(); toggleMod(mod.id); });
+                    btnRow.appendChild(toggleBtn);
+
+                    if (mod.sourceUrl) {
+                        var srcBtn = document.createElement('a');
+                        srcBtn.className = 'emby-button';
+                        srcBtn.style.cssText = 'padding:.35em .6em;font-size:.78em;border:1px solid rgba(255,255,255,.2)';
+                        srcBtn.textContent = '↗';
+                        srcBtn.title = 'View source';
+                        srcBtn.href = mod.sourceUrl;
+                        srcBtn.target = '_blank';
+                        srcBtn.rel = 'noopener noreferrer';
+                        srcBtn.addEventListener('click', function (e) { e.stopPropagation(); });
+                        btnRow.appendChild(srcBtn);
+                    }
+
+                    footer.appendChild(btnRow);
+                    cardBox.appendChild(footer);
+                    card.appendChild(cardBox);
+                    card.addEventListener('click', function () { toggleMod(mod.id); });
+                    return card;
+                }
+
+                function toggleMod(id) {
+                    var ids = currentIds().slice();
+                    var i = ids.indexOf(id);
+                    if (i === -1) ids.push(id); else ids.splice(i, 1);
+                    state.pendingIds = ids;
+                    el('btnSave').disabled = false;
+                    updatePending();
+                    updateActiveBar();
+                    render();
+                }
+
+                function currentIds() {
+                    return state.pendingIds !== null ? state.pendingIds : state.enabledIds;
+                }
+
+                function updateActiveBar() {
+                    var n = currentIds().length;
+                    el('activeBar').style.display = n > 0 ? 'flex' : 'none';
+                    el('activeCount').textContent = n;
+                }
+
+                function updatePending() {
+                    var p = el('pendingLabel');
+                    var ids = currentIds();
+                    if (state.pendingIds !== null) {
+                        p.textContent = ids.length + ' mod(s) pending — unsaved';
+                        p.style.color = '#00a4dc';
+                    } else {
+                        p.textContent = ids.length > 0 ? ids.length + ' mod(s) active' : 'No pending changes';
+                        p.style.color = '';
+                    }
+                }
+
+                function doSave() {
+                    if (state.mods.length === 0) {
+                        Dashboard.alert('Please click Load Mods before saving.');
+                        return;
+                    }
+                    var ids = currentIds();
+                    var cfg = Object.assign({}, state.config, {
+                        ModsUrl: el('modsUrl').value.trim(),
+                        EnabledMods: ids,
+                        CachedMods: JSON.stringify(state.mods),
+                        DebugLogging: el('chkDebug').checked
+                    });
+                    el('btnSave').disabled = true;
+                    ApiClient.updatePluginConfiguration(PLUGIN_ID, cfg).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        state.config = cfg;
+                        state.enabledIds = ids;
+                        state.pendingIds = null;
+                        updatePending();
+                        updateActiveBar();
+                        render();
+                        setTimeout(function () { window.top.location.reload(); }, 500);
+                    }).catch(function (err) {
+                        el('btnSave').disabled = false;
+                        Dashboard.alert('Save failed: ' + err.message);
+                    });
+                }
+
+                document.querySelector('.modManagerConfigurationPage').addEventListener('pageshow', loadConfig);
+
+                el('btnLoad').addEventListener('click', function () {
+                    var url = el('modsUrl').value.trim();
+                    if (url) loadMods(url);
+                });
+                el('searchInput').addEventListener('input', function () { state.query = this.value; render(); });
+                el('btnSave').addEventListener('click', doSave);
+
+                el('chkDebug').addEventListener('change', function () {
+                    var cfg = Object.assign({}, state.config, { DebugLogging: this.checked });
+                    ApiClient.updatePluginConfiguration(PLUGIN_ID, cfg).then(function (result) {
+                        state.config = cfg;
+                    });
+                });
+
+                el('btnDisableAll').addEventListener('click', function () {
+                    state.pendingIds = [];
+                    el('btnSave').disabled = false;
+                    updatePending();
+                    updateActiveBar();
+                    render();
+                });
+
+            })();
+        </script>
+
+    </div>
+</body>
+
+</html>
